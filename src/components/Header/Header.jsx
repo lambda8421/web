@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
-import { Link } from 'react-router-dom';
 import ActionSearch from 'material-ui/svg-icons/action/search';
 import { Toolbar, ToolbarGroup } from 'material-ui/Toolbar';
 import IconButton from 'material-ui/IconButton';
@@ -16,8 +15,9 @@ import AccountWidget from '../AccountWidget';
 import SearchForm from '../Search/SearchForm';
 import AppLogo from '../App/AppLogo';
 import BurgerMenu from './BurgerMenu';
+import { GITHUB_REPO } from '../../config';
 
-const REPORT_BUG_PATH = '//github.com/odota/web/issues';
+const REPORT_BUG_PATH = `//github.com/${GITHUB_REPO}/issues`;
 
 const VerticalAlignToolbar = styled(ToolbarGroup)`
   display: flex;
@@ -79,7 +79,9 @@ class Header extends React.Component {
     small: PropTypes.bool,
     user: PropTypes.shape({}),
     strings: PropTypes.shape({}),
-  }
+    navbarPages: PropTypes.arrayOf(PropTypes.shape({})),
+    disableSearch: PropTypes.bool,
+  };
 
   constructor() {
     super();
@@ -89,21 +91,8 @@ class Header extends React.Component {
 
   render() {
     const {
-      location, small, user, strings,
+      location, small, user, strings, navbarPages, disableSearch,
     } = this.props;
-    const navbarPages = [
-      <Link key="header_explorer" to="/explorer">{strings.header_explorer}</Link>,
-      <Link key="header_meta" to="/meta">{strings.header_meta}</Link>,
-      <Link key="header_matches" to="/matches">{strings.header_matches}</Link>,
-      <Link key="header_teams" to="/teams">{strings.header_teams}</Link>,
-      <Link key="header_heroes" to="/heroes">{strings.header_heroes}</Link>,
-      <Link key="header_distributions" to="/distributions">{strings.header_distributions}</Link>,
-      <Link key="header_records" to="/records">{strings.header_records}</Link>,
-      // <Link key={strings.header_scenarios} to="/scenarios/itemTimings">{strings.header_scenarios}</Link>,
-      <Link key="header_api" to="/api-keys">{strings.header_api}</Link>,
-    // <Link key="header_predictions" to="/predictions">Predictions</Link>,
-    // <Link key="header_assistant" to="/assistant">Assistant</Link>,
-    ];
 
     const burgerItems = [
       <AccountWidget key={0} />,
@@ -198,7 +187,7 @@ class Header extends React.Component {
           <VerticalAlignDiv>
             <LogoGroup small={small} />
             {small && <LinkGroup />}
-            <SearchGroup />
+            {!disableSearch && <SearchGroup />}
           </VerticalAlignDiv>
           <VerticalAlignDiv style={{ marginLeft: 'auto' }}>
             {small && <AccountGroup />}

@@ -73,9 +73,9 @@ class Wordcloud extends React.Component {
   componentDidUpdate(nextProps) {
     updateWordCloud(nextProps.counts, this.id);
   }
-  UNSAFE_componentWillMount() {
-    this.id = `a-${uuid.v4()}`;
-  }
+
+  id = `a-${uuid.v4()}`;
+
   render() {
     const width = Math.min(1080, window.innerWidth * 0.75);
     const height = width * 0.7;

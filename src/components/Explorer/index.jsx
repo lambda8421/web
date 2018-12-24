@@ -1,33 +1,32 @@
 /* global ace */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { connect }
-  from 'react-redux';
-import fetch from 'isomorphic-fetch';
+import { connect } from 'react-redux';
 import RaisedButton from 'material-ui/RaisedButton';
 import ActionSearch from 'material-ui/svg-icons/action/search';
 import Helmet from 'react-helmet';
 import querystring from 'querystring';
-import json2csv from 'json2csv';
-import Spinner from '../Spinner';
-import strings from '../../lang';
+import Papa from 'papaparse';
 import Heading from '../Heading';
 import {
   getProPlayers,
   getLeagues,
   getTeams,
-}
-  from '../../actions';
+} from '../../actions';
 import queryTemplate from './queryTemplate';
 import ExplorerOutputButton from './ExplorerOutputButton';
 import ExplorerOutputSection from './ExplorerOutputSection';
 import ExplorerControlSection from './ExplorerControlSection';
 import ExplorerFormField from './ExplorerFormField';
-import fields from './fields';
+import getFields from './fields';
 import autocomplete from './autocomplete';
+import TableSkeleton from '../Skeletons/TableSkeleton';
+import { formatTemplateToString } from '../../utility';
 
 const playerMapping = {};
 const teamMapping = {};
+
+const defaultMinDate = 30;
 
 function jsonResponse(response) {
   return response.json();
@@ -36,7 +35,9 @@ function jsonResponse(response) {
 function expandBuilderState(builder, _fields) {
   const expandedBuilder = {};
   Object.keys(builder).forEach((key) => {
-    if (builder[key]) {
+    if (Array.isArray(builder[key])) {
+      expandedBuilder[key] = builder[key].map(x => (_fields[key] || []).find(element => element.key === x) || { value: x });
+    } else if (builder[key]) {
       expandedBuilder[key] = (_fields[key] || []).find(element => element.key === builder[key]) || { value: builder[key] };
     }
   });
@@ -51,7 +52,8 @@ class Explorer extends React.Component {
     dispatchProPlayers: PropTypes.func,
     dispatchLeagues: PropTypes.func,
     dispatchTeams: PropTypes.func,
-  }
+    strings: PropTypes.shape({}),
+  };
 
   constructor() {
     super();
@@ -71,6 +73,10 @@ class Explorer extends React.Component {
       result: {},
       builder: urlState,
     };
+
+    if (!('minDate' in this.state.builder)) {
+      this.state.builder.minDate = new Date(new Date().setDate(new Date().getDate() - defaultMinDate)).toISOString();
+    }
   }
   async componentDidMount() {
     this.props.dispatchProPlayers();
@@ -85,19 +91,27 @@ class Explorer extends React.Component {
     this.instantiateEditor();
   }
 
+  componentDidUpdate(nextProps) {
+    if (this.editor && !this.completersSet && nextProps.proPlayers.length && nextProps.teams.length && nextProps.leagues.length) {
+      this.completersSet = true;
+      fetch(`${process.env.REACT_APP_API_HOST}/api/schema`).then(jsonResponse).then((schema) => {
+        this.editor.completers = [autocomplete(schema, nextProps.proPlayers, nextProps.teams, nextProps.leagues)];
+      });
+    }
+  }
+
   getSqlString = () => this.editor.getSelectedText() || this.editor.getValue();
 
   buildQuery = () => {
     // Note that this will not get expanded data for API-dependent fields (player/league/team)
     // This is ok if we only need the value prop (e.g. an id to build the query with)
-    const expandedBuilder = expandBuilderState(this.state.builder, fields());
+    const expandedBuilder = expandBuilderState(this.state.builder, getFields());
     // TODO handle arrays
     this.editor.setValue(queryTemplate(expandedBuilder));
   };
 
   handleCancel = () => {
     this.setState({
-      ...this.state,
       loading: false,
     });
     window.stop();
@@ -105,7 +119,6 @@ class Explorer extends React.Component {
 
   handleFieldUpdate = (builderField, value) => {
     this.setState({
-      ...this.state,
       builder: {
         ...this.state.builder,
         [builderField]: value,
@@ -113,22 +126,36 @@ class Explorer extends React.Component {
     }, this.buildQuery);
   };
 
-  handleQuery = () => {
-    if (this.state.loadingEditor === true) {
-      return setTimeout(this.handleQuery, 1000);
-    }
-    this.setState({
-      ...this.state,
-      loading: true,
-    });
+  sendRequest = () => {
     this.syncWindowHistory();
     const sqlString = this.getSqlString();
     return fetch(`${process.env.REACT_APP_API_HOST}/api/explorer?sql=${encodeURIComponent(sqlString)}`).then(jsonResponse).then(this.handleResponse);
+  }
+
+  handleQuery = () => {
+    const { builder, showEditor } = this.state;
+    const { select, group } = builder;
+    if (this.state.loadingEditor === true) {
+      setTimeout(this.handleQuery, 1000);
+    } else if (group && (!select || select.length < 1) && !showEditor) {
+      this.setState({
+        builder: {
+          ...builder,
+          select: 'kills',
+        },
+      }, () => {
+        this.buildQuery();
+        this.handleQuery();
+      });
+    } else {
+      this.setState({
+        loading: true,
+      }, this.sendRequest);
+    }
   };
 
   handleResponse = (json) => {
     this.setState({
-      ...this.state,
       loading: false,
       result: json,
     });
@@ -138,14 +165,11 @@ class Explorer extends React.Component {
     const editor = ace.edit('editor');
     editor.setTheme('ace/theme/monokai');
     editor.getSession().setMode('ace/mode/sql');
-    editor.setShowPrintMargin(false);
     editor.setOptions({
       minLines: 10,
       maxLines: Infinity,
       enableLiveAutocompletion: true,
-    });
-    fetch(`${process.env.REACT_APP_API_HOST}/api/schema`).then(jsonResponse).then((schema) => {
-      editor.completers = [autocomplete(schema)];
+      showPrintMargin: false,
     });
     this.editor = editor;
     const { sql } = querystring.parse(window.location.search.substring(1));
@@ -184,13 +208,14 @@ class Explorer extends React.Component {
         teamMapping[team.team_id] = team.name;
       });
     }
-    const expandedFields = fields(this.props.proPlayers, this.props.leagues, this.props.teams);
+    const expandedFields = getFields(this.props.proPlayers, this.props.leagues, this.props.teams);
     const expandedBuilder = expandBuilderState(this.state.builder, expandedFields);
     const {
       handleQuery, handleCancel, getSqlString, handleFieldUpdate,
     } = this;
     const explorer = this;
     const { builder } = this.state;
+    const { strings } = this.props;
     return (
       <div>
         <Helmet title={`${strings.title_explorer} - ${strings.explorer_subtitle}`} />
@@ -200,15 +225,15 @@ class Explorer extends React.Component {
           showEditor={this.state.showEditor}
           toggleEditor={this.toggleEditor}
         >
-          <ExplorerFormField label={strings.explorer_select} fields={expandedFields} builderField="select" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={strings.explorer_select} fields={expandedFields} builderField="select" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
           <ExplorerFormField label={strings.explorer_group_by} fields={expandedFields} builderField="group" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label={strings.explorer_hero} fields={expandedFields} builderField="hero" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label={strings.explorer_player} fields={expandedFields} builderField="player" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label={strings.explorer_team} fields={expandedFields} builderField="team" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label={strings.explorer_organization} fields={expandedFields} builderField="organization" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label={strings.explorer_league} fields={expandedFields} builderField="league" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={strings.explorer_hero} fields={expandedFields} builderField="hero" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
+          <ExplorerFormField label={strings.explorer_player} fields={expandedFields} builderField="player" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
+          <ExplorerFormField label={strings.explorer_team} fields={expandedFields} builderField="team" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
+          <ExplorerFormField label={strings.explorer_organization} fields={expandedFields} builderField="organization" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
+          <ExplorerFormField label={strings.explorer_league} fields={expandedFields} builderField="league" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
           <ExplorerFormField label={strings.explorer_tier} fields={expandedFields} builderField="tier" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label={strings.explorer_region} fields={expandedFields} builderField="region" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={strings.explorer_region} fields={expandedFields} builderField="region" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
           <ExplorerFormField label={strings.explorer_side} fields={expandedFields} builderField="side" handleFieldUpdate={handleFieldUpdate} builder={builder} />
           <ExplorerFormField label={strings.th_result} fields={expandedFields} builderField="result" handleFieldUpdate={handleFieldUpdate} builder={builder} />
           <ExplorerFormField
@@ -217,18 +242,22 @@ class Explorer extends React.Component {
             builderField="playerPurchased"
             handleFieldUpdate={handleFieldUpdate}
             builder={builder}
+            multipleSelect
           />
-          <ExplorerFormField label={strings.explorer_lane_role} fields={expandedFields} builderField="laneRole" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={strings.explorer_lane_role} fields={expandedFields} builderField="laneRole" handleFieldUpdate={handleFieldUpdate} builder={builder} multipleSelect />
           <ExplorerFormField label={strings.explorer_min_patch} fields={expandedFields} builderField="minPatch" handleFieldUpdate={handleFieldUpdate} builder={builder} />
           <ExplorerFormField label={strings.explorer_max_patch} fields={expandedFields} builderField="maxPatch" handleFieldUpdate={handleFieldUpdate} builder={builder} />
           <ExplorerFormField label={strings.explorer_min_duration} fields={expandedFields} builderField="minDuration" handleFieldUpdate={handleFieldUpdate} builder={builder} />
           <ExplorerFormField label={strings.explorer_max_duration} fields={expandedFields} builderField="maxDuration" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label={strings.explorer_min_date} builderField="minDate" handleFieldUpdate={handleFieldUpdate} builder={builder} isDateField />
+          <ExplorerFormField label={strings.explorer_min_date} builderField="minDate" handleFieldUpdate={handleFieldUpdate} builder={builder} isDateField minDate />
           <ExplorerFormField label={strings.explorer_max_date} builderField="maxDate" handleFieldUpdate={handleFieldUpdate} builder={builder} isDateField />
           <ExplorerFormField label={strings.explorer_order} fields={expandedFields} builderField="order" handleFieldUpdate={handleFieldUpdate} builder={builder} />
           <ExplorerFormField label={strings.explorer_having} fields={expandedFields} builderField="having" handleFieldUpdate={handleFieldUpdate} builder={builder} />
           <ExplorerFormField label={strings.explorer_limit} fields={expandedFields} builderField="limit" handleFieldUpdate={handleFieldUpdate} builder={builder} />
-          <ExplorerFormField label="Is TI7 Team" fields={expandedFields} builderField="isTi7Team" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={formatTemplateToString(strings.explorer_is_ti_team, { number: 8 })} fields={expandedFields} builderField="isTi8Team" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={strings.explorer_mega_comeback} fields={expandedFields} builderField="megaWin" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={strings.explorer_max_gold_adv} fields={expandedFields} builderField="maxGoldAdvantage" handleFieldUpdate={handleFieldUpdate} builder={builder} />
+          <ExplorerFormField label={strings.explorer_min_gold_adv} fields={expandedFields} builderField="minGoldAdvantage" handleFieldUpdate={handleFieldUpdate} builder={builder} />
         </ExplorerControlSection>
         <div>
           <RaisedButton
@@ -255,7 +284,7 @@ class Explorer extends React.Component {
           */}
             <ExplorerOutputButton
               label={strings.explorer_csv_button}
-              href={`data:application/octet-stream,${encodeURIComponent(json2csv({
+              href={`data:application/octet-stream,${encodeURIComponent(Papa.unparse({
               data: this.state.result.rows || [],
               fields: (this.state.result.fields || []).map(field => field.name),
             }))}`}
@@ -277,15 +306,15 @@ class Explorer extends React.Component {
         </div>
         <Heading title={strings.explorer_results} subtitle={`${(this.state.result.rows || []).length} ${strings.explorer_num_rows}`} />
         <pre style={{ color: 'red' }}>{this.state.result.err}</pre>
-        {this.state.loading ? <Spinner /> : null}
-        <ExplorerOutputSection
+        {this.state.loading ? <TableSkeleton /> : null}
+        {!this.state.loading && <ExplorerOutputSection
           rows={this.state.result.rows}
           fields={this.state.result.fields}
           expandedBuilder={expandedBuilder}
           playerMapping={playerMapping}
           teamMapping={teamMapping}
           format={this.state.builder.format}
-        />
+        />}
       </div>);
   }
 }
@@ -294,6 +323,7 @@ const mapStateToProps = state => ({
   proPlayers: state.app.proPlayers.data,
   leagues: state.app.leagues.data,
   teams: state.app.teams.data,
+  strings: state.app.strings,
 });
 
 const mapDispatchToProps = dispatch => ({

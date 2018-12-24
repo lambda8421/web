@@ -5,8 +5,36 @@ export const StyledDiv = styled.div`
   margin-top: 15px;
   margin-bottom: 15px;
 
+  .winner {
+    position: relative;
+    bottom: 1px;
+    background: rgb(25, 25, 25);
+    font-size: 10px;
+    padding: 1px;
+    padding-right: 4px;
+    margin-left: 10px;
+    margin-right: 5px;
+    letter-spacing: 1px;
+    color: rgb(210, 210, 210);
+    text-transform: uppercase;
+  }
+
+  .winner:after {
+    right: 100%;
+    top: 50%;
+    border: solid transparent;
+    content: " ";
+    height: 0;
+    width: 0;
+    position: absolute;
+    pointer-events: none;
+    border-right-color: rgb(25, 25, 25);
+    border-width: 8px;
+    margin-top: -8px;
+  }
+
   & svg {
-    vertical-align: top;
+    vertical-align: middle;
     height: 26px !important;
     width: 26px !important;
     margin-right: 6px;
@@ -32,9 +60,33 @@ export const StyledDiv = styled.div`
     font-size: ${constants.fontSizeMedium};
     color: ${constants.colorMutedLight};
   }
+
+  .sponsor-button {
+    margin: 0px 5px;
+    
+    /* Material-ui buttons */
+    @media only screen and (max-width: 620px) {
+      & a {
+        min-width: 24px !important;
+  
+        & span {
+          font-size: 0 !important;
+          padding-left: 0 !important;
+          padding-right: 12px !important;
+        }
+      }
+    }
+  }
+  
+  & .info {
+    margin-left: 5px;
+    font-size: ${constants.fontSizeMedium};
+    color: ${constants.colorMuted};
+    border-bottom: 1px dotted ${constants.colorMuted};
+  }
 `;
 
-export const TwoLineDiv = StyledDiv.extend`
+export const TwoLineDiv = styled(StyledDiv)`
   text-align: center;
   padding: 10px 0 15px;
 

@@ -5,8 +5,10 @@ import transformCounts from './transformCounts';
 import transformHistograms from './transformHistograms';
 import transformTrends from './transformTrends';
 import transformRankings from './transformRankings';
+import transformPlayerMatches from './transformPlayerMatches';
 import action from './action';
 import { langs } from '../lang';
+import { GITHUB_REPO } from '../config';
 
 export const getMetadata = () => action('metadata', process.env.REACT_APP_API_HOST, 'api/metadata');
 export const getMatch = matchId => action('match', process.env.REACT_APP_API_HOST, `api/matches/${matchId}`, {}, transformMatch);
@@ -28,6 +30,7 @@ export const getSearchResultAndPros = query => dispatch => Promise.all([
   dispatch(setSearchQuery(query)),
   dispatch(getSearchResult(query)),
   dispatch(getProPlayers()),
+  ...(/^\d+$/.test(query) ? [dispatch(getMatch(query))] : []),
 ]);
 export const getDistributions = () => action('distributions', process.env.REACT_APP_API_HOST, 'api/distributions');
 export const getPvgnaHeroGuides = () => action('pvgnaGuides', 'https://yasp.pvgna.com', 'yasp');
@@ -40,7 +43,7 @@ export const getTeamPlayers = teamId => action('teamPlayers', process.env.REACT_
 export const getTeamHeroes = teamId => action('teamHeroes', process.env.REACT_APP_API_HOST, `api/teams/${teamId}/heroes`);
 export const getRecords = field => action('records', process.env.REACT_APP_API_HOST, `api/records/${field}`);
 export const getGithubPulls = merged => action('ghPulls', 'https://api.github.com', 'search/issues', {
-  q: `repo:odota/web type:pr base:production label:release merged:>${merged}`,
+  q: `repo:${GITHUB_REPO} type:pr base:production label:release merged:>${merged}`,
   order: 'desc',
   page: 1,
   per_page: 1,
@@ -48,7 +51,7 @@ export const getGithubPulls = merged => action('ghPulls', 'https://api.github.co
 export const getPlayer = accountId => action('player', process.env.REACT_APP_API_HOST, `api/players/${accountId}`);
 export const getPlayerWinLoss = (accountId, params) => action('playerWinLoss', process.env.REACT_APP_API_HOST, `api/players/${accountId}/wl`, params);
 export const getPlayerRecentMatches = (accountId, params) => action('playerRecentMatches', process.env.REACT_APP_API_HOST, `api/players/${accountId}/recentMatches`, params);
-export const getPlayerMatches = (accountId, params) => action('playerMatches', process.env.REACT_APP_API_HOST, `api/players/${accountId}/matches`, { ...querystring.parse(params.substring(1)), significant: 0 });
+export const getPlayerMatches = (accountId, params) => action('playerMatches', process.env.REACT_APP_API_HOST, `api/players/${accountId}/matches`, { ...querystring.parse(params.substring(1)), significant: 0 }, transformPlayerMatches({ ...querystring.parse(params.substring(1)) }));
 export const getPlayerPeers = (accountId, params) => action('playerPeers', process.env.REACT_APP_API_HOST, `api/players/${accountId}/peers`, params);
 export const getPlayerHeroes = (accountId, params) => action('playerHeroes', process.env.REACT_APP_API_HOST, `api/players/${accountId}/heroes`, params);
 export const getPlayerPros = (accountId, params) => action('playerPros', process.env.REACT_APP_API_HOST, `api/players/${accountId}/pros`, params);
@@ -73,14 +76,15 @@ export const getStrings = () => async (dispatch) => {
 export const getAbilities = () => async (dispatch) => {
   dispatch({ type: 'abilities', payload: await import('dotaconstants/build/abilities.json') });
 };
+export const getHeroAbilities = () => async (dispatch) => {
+  dispatch({ type: 'heroAbilities', payload: await import('dotaconstants/build/hero_abilities.json') });
+};
 export const getNeutralAbilities = () => async (dispatch) => {
   dispatch({ type: 'neutralAbilities', payload: await import('dotaconstants/build/neutral_abilities.json') });
 };
 export const getAbilityIds = () => async (dispatch) => {
   dispatch({ type: 'abilityIds', payload: await import('dotaconstants/build/ability_ids.json') });
 };
-export * from './requestActions';
-export * from './formActions';
 export const getScenariosItemTimings = params => action('scenariosItemTimings', process.env.REACT_APP_API_HOST, 'api/scenarios/itemTimings', params);
 export const getScenariosLaneRoles = params => action('scenariosLaneRoles', process.env.REACT_APP_API_HOST, 'api/scenarios/laneRoles', params);
 export const getScenariosMisc = params => action('scenariosMisc', process.env.REACT_APP_API_HOST, 'api/scenarios/misc', params);

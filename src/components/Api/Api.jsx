@@ -1,5 +1,4 @@
 import React from 'react';
-import fetch from 'isomorphic-fetch';
 import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import Helmet from 'react-helmet';
@@ -7,20 +6,10 @@ import CircularProgress from 'material-ui/CircularProgress';
 import RaisedButton from 'material-ui/RaisedButton';
 import styled from 'styled-components';
 import StripeCheckout from 'react-stripe-checkout';
-import {
-  Table,
-  TableBody,
-  TableHeader,
-  TableHeaderColumn,
-  TableRow,
-  TableRowColumn,
-} from 'material-ui/Table';
-import strings from '../../lang';
 
 const path = '/keys';
 
 const ApiContainer = styled.div`
-
   width: 80%;
   margin: 0 auto; 
   
@@ -40,13 +29,20 @@ const KeyContainer = styled.pre`
 `;
 
 const TableContainer = styled.div`
-  width: 80%;
-  margin: 0 auto; 
-  
+  table {
+    width: 80%;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.011);
+  }
+
   & table td, table th {
     white-space: inherit !important;
   }
-  
+
+  th {
+    color: rgb(255, 128, 171);
+  }
+ 
   @media only screen and (max-width: 768px) {
     width: 100%;
   }
@@ -66,7 +62,8 @@ class KeyManagement extends React.Component {
   static propTypes = {
     loading: PropTypes.bool,
     user: PropTypes.shape({}),
-  }
+    strings: PropTypes.shape({}),
+  };
 
   constructor(props) {
     super(props);
@@ -163,13 +160,13 @@ class KeyManagement extends React.Component {
   }
 
   render() {
-    const { loading, user } = this.props;
+    const { loading, user, strings } = this.props;
     const showLoginButton = !user;
     const showGetKeyButton = user && !(this.state.customer && this.state.customer.api_key);
     const premUnit = 100;
     const freeCallLimit = 50000;
     const freeRateLimit = 60;
-    const premRateLimit = 300;
+    const premRateLimit = 1200;
     const premPrice = 0.01;
 
     return (
@@ -189,7 +186,7 @@ class KeyManagement extends React.Component {
           <h1>{strings.api_title}</h1>
           <h3>{strings.api_subtitle}</h3>
           {
-            loading || this.state.loading ?
+            loading || this.state.loading || !Object.keys(strings).length ?
               <CircularProgress mode="indeterminate" />
             :
               <div>
@@ -256,28 +253,28 @@ class KeyManagement extends React.Component {
                         <div>
                           <h4>{strings.api_header_usage}</h4>
                           <TableContainer>
-                            <Table>
-                              <TableHeader
+                            <table>
+                              <thead
                                 displaySelectAll={false}
                                 adjustForCheckbox={false}
                               >
-                                <TableRow>
-                                  <TableHeaderColumn>{strings.api_month}</TableHeaderColumn>
-                                  <TableHeaderColumn>{strings.api_usage_calls}</TableHeaderColumn>
-                                  <TableHeaderColumn>{strings.api_usage_fees}</TableHeaderColumn>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody
+                                <tr>
+                                  <th>{strings.api_month}</th>
+                                  <th>{strings.api_usage_calls}</th>
+                                  <th>{strings.api_usage_fees}</th>
+                                </tr>
+                              </thead>
+                              <tbody
                                 displayRowCheckbox={false}
                               >
                                 { this.state.usage.map(e => (
-                                  <TableRow key={e.month}>
-                                    <TableRowColumn>{e.month}</TableRowColumn>
-                                    <TableRowColumn>{e.usage_count}</TableRowColumn>
-                                    <TableRowColumn>{`$${premPrice * Math.ceil(e.usage_count / premUnit)}`}</TableRowColumn>
-                                  </TableRow>))}
-                              </TableBody>
-                            </Table>
+                                  <tr key={e.month}>
+                                    <td>{e.month}</td>
+                                    <td>{e.usage_count}</td>
+                                    <td>{`$${Number(premPrice * Math.ceil(e.usage_count / premUnit)).toFixed(2)}`}</td>
+                                  </tr>))}
+                              </tbody>
+                            </table>
                           </TableContainer>
                         </div>
                       : <div />
@@ -285,62 +282,62 @@ class KeyManagement extends React.Component {
                   </div>
                   : <div />
                 }
+                <h3>{strings.api_header_table}</h3>
+                <TableContainer>
+                  <table>
+                    <thead
+                      displaySelectAll={false}
+                      adjustForCheckbox={false}
+                    >
+                      <tr>
+                        <th />
+                        <th>{strings.api_details_free_tier}</th>
+                        <th>{strings.api_details_premium_tier}</th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      displayRowCheckbox={false}
+                    >
+                      <tr>
+                        <th>{strings.api_details_price}</th>
+                        <td>{strings.api_details_price_free}</td>
+                        <td>{strings.api_details_price_prem.replace('price', premPrice).replace('$unit', premUnit)}</td>
+                      </tr>
+                      <tr>
+                        <th>{strings.api_details_key_required}</th>
+                        <td>{strings.api_details_key_required_free}</td>
+                        <td>{strings.api_details_key_required_prem}</td>
+                      </tr>
+                      <tr>
+                        <th>{strings.api_details_call_limit}</th>
+                        <td>{strings.api_details_call_limit_free.replace('$limit', freeCallLimit)}</td>
+                        <td>{strings.api_details_call_limit_prem}</td>
+                      </tr>
+                      <tr>
+                        <th>{strings.api_details_rate_limit}</th>
+                        <td>{strings.api_details_rate_limit_val.replace('$num', freeRateLimit)}</td>
+                        <td>{strings.api_details_rate_limit_val.replace('$num', premRateLimit)}</td>
+                      </tr>
+                      <tr>
+                        <th>{strings.api_details_support}</th>
+                        <td>{strings.api_details_support_free}</td>
+                        <td>{strings.api_details_support_prem}</td>
+                      </tr>
+                      <tr style={{ height: '24px' }} />
+                    </tbody>
+                  </table>
+                </TableContainer>
+
+                <h3>{strings.api_header_details}</h3>
+                <DetailsContainer>
+                  <ul>
+                    <li>{strings.api_charging.replace('$cost', `$${premPrice / premUnit}`)}</li>
+                    <li>{strings.api_credit_required}</li>
+                    <li>{strings.api_failure}</li>
+                  </ul>
+                </DetailsContainer>
               </div>
           }
-          <h3>{strings.api_header_table}</h3>
-          <TableContainer>
-            <Table>
-              <TableHeader
-                displaySelectAll={false}
-                adjustForCheckbox={false}
-              >
-                <TableRow>
-                  <TableHeaderColumn />
-                  <TableHeaderColumn>{strings.api_details_free_tier}</TableHeaderColumn>
-                  <TableHeaderColumn>{strings.api_details_premium_tier}</TableHeaderColumn>
-                </TableRow>
-              </TableHeader>
-              <TableBody
-                displayRowCheckbox={false}
-              >
-                <TableRow>
-                  <TableHeaderColumn>{strings.api_details_price}</TableHeaderColumn>
-                  <TableRowColumn>{strings.api_details_price_free}</TableRowColumn>
-                  <TableRowColumn>{strings.api_details_price_prem.replace('price', premPrice).replace('$unit', premUnit)}</TableRowColumn>
-                </TableRow>
-                <TableRow>
-                  <TableHeaderColumn>{strings.api_details_key_required}</TableHeaderColumn>
-                  <TableRowColumn>{strings.api_details_key_required_free}</TableRowColumn>
-                  <TableRowColumn>{strings.api_details_key_required_prem}</TableRowColumn>
-                </TableRow>
-                <TableRow>
-                  <TableHeaderColumn>{strings.api_details_call_limit}</TableHeaderColumn>
-                  <TableRowColumn>{strings.api_details_call_limit_free.replace('$limit', freeCallLimit)}</TableRowColumn>
-                  <TableRowColumn>{strings.api_details_call_limit_prem}</TableRowColumn>
-                </TableRow>
-                <TableRow>
-                  <TableHeaderColumn>{strings.api_details_rate_limit}</TableHeaderColumn>
-                  <TableRowColumn>{strings.api_details_rate_limit_val.replace('$num', freeRateLimit)}</TableRowColumn>
-                  <TableRowColumn>{strings.api_details_rate_limit_val.replace('$num', premRateLimit)}</TableRowColumn>
-                </TableRow>
-                <TableRow>
-                  <TableHeaderColumn>{strings.api_details_support}</TableHeaderColumn>
-                  <TableRowColumn>{strings.api_details_support_free}</TableRowColumn>
-                  <TableRowColumn>{strings.api_details_support_prem}</TableRowColumn>
-                </TableRow>
-                <TableRow style={{ height: '24px' }} />
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <h3>{strings.api_header_details}</h3>
-          <DetailsContainer>
-            <ul>
-              <li>{strings.api_charging.replace('$cost', `$${premPrice / premUnit}`)}</li>
-              <li>{strings.api_credit_required}</li>
-              <li>{strings.api_failure}</li>
-            </ul>
-          </DetailsContainer>
         </ApiContainer>
       </div>
     );
@@ -353,11 +350,8 @@ const mapStateToProps = (state) => {
     loading,
     error,
     user: data.user,
+    strings: state.app.strings,
   };
 };
-
-// const mapDispatchToProps = dispatch => ({
-//   dispatchPostRequest: matchId => dispatch(postRequest(matchId)),
-// });
 
 export default connect(mapStateToProps, null)(KeyManagement);

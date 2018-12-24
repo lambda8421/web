@@ -1,37 +1,37 @@
 import React from 'react';
-// import PropTypes from 'prop-types';
+import PropTypes from 'prop-types';
 import { connect }
   from 'react-redux';
-import fetch from 'isomorphic-fetch';
 import RaisedButton from 'material-ui/RaisedButton';
 import ActionSearch from 'material-ui/svg-icons/action/search';
 import Helmet from 'react-helmet';
 import querystring from 'querystring';
-import Spinner from '../Spinner';
-import strings from '../../lang';
 import ExplorerOutputSection from '../Explorer/ExplorerOutputSection';
 import ExplorerControlSection from '../Explorer/ExplorerControlSection';
 import ExplorerFormField from '../Explorer/ExplorerFormField';
 import Heading from '../Heading';
+import TableSkeleton from '../Skeletons/TableSkeleton';
 import queryTemplate from './queryTemplate';
-import fields from './fields';
+import getFields from './fields';
 
 function jsonResponse(response) {
   return response.json();
 }
 
-function expandBuilderState(builder, _fields) {
+function expandBuilderState(builder, fields) {
   const expandedBuilder = {};
   Object.keys(builder).forEach((key) => {
     if (builder[key]) {
-      expandedBuilder[key] = (_fields[key] || []).find(element => element.key === builder[key]) || { value: builder[key] };
+      expandedBuilder[key] = (fields[key] || []).find(element => element.key === builder[key]) || { value: builder[key] };
     }
   });
   return expandedBuilder;
 }
 
 class Explorer extends React.Component {
-  static propTypes = {}
+  static propTypes = {
+    strings: PropTypes.shape({}),
+  }
 
   constructor() {
     super();
@@ -50,7 +50,7 @@ class Explorer extends React.Component {
 
   buildQuery = (cb) => {
     const noOp = () => {};
-    const expandedBuilder = expandBuilderState(this.state.builder, fields());
+    const expandedBuilder = expandBuilderState(this.state.builder, getFields());
     this.setState({ sql: queryTemplate(expandedBuilder) }, cb || noOp);
   };
 
@@ -98,7 +98,8 @@ class Explorer extends React.Component {
 
   render() {
     const { builder } = this.state;
-    const expandedFields = fields();
+    const { strings } = this.props;
+    const expandedFields = getFields();
     const expandedBuilder = expandBuilderState(this.state.builder, expandedFields);
     const { handleQuery, handleCancel, handleFieldUpdate } = this;
     return (
@@ -136,7 +137,7 @@ class Explorer extends React.Component {
         </div>
         <Heading title={strings.explorer_results} subtitle={`${(this.state.result.rows || []).length} ${strings.explorer_num_rows}`} />
         <pre style={{ color: 'red' }}>{this.state.result.err}</pre>
-        {this.state.loading ? <Spinner /> : null}
+        {this.state.loading ? <TableSkeleton /> : null}
         <ExplorerOutputSection
           rows={this.state.result.rows}
           fields={this.state.result.fields}
@@ -147,7 +148,8 @@ class Explorer extends React.Component {
   }
 }
 
-const mapStateToProps = () => ({
+const mapStateToProps = state => ({
+  strings: state.app.strings,
 });
 
 const mapDispatchToProps = () => ({

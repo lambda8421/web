@@ -2,7 +2,6 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import Checkbox from 'material-ui/Checkbox';
 import Table from '../../Table';
-import strings from '../../../lang';
 import Heading from '../../Heading';
 
 import PlayerThumb from '../PlayerThumb';
@@ -18,7 +17,7 @@ const data = [
   },
 ];
 
-export default class VisionFilter extends React.Component {
+class VisionFilter extends React.Component {
   static propTypes = {
     match: PropTypes.shape({
       players: PropTypes.arrayOf({}),
@@ -31,14 +30,20 @@ export default class VisionFilter extends React.Component {
       setPlayer: PropTypes.func,
       teams: PropTypes.arrayOf({}),
       setTeam: PropTypes.func,
+      setTypeWard: PropTypes.func,
+      checkedTypeWard: PropTypes.func,
+      onCheckAllWardsTeam: PropTypes.func,
     }),
-  }
+    strings: PropTypes.shape({}),
+  };
 
   columns(index) {
+    const { teams } = this.props.parent.state;
+    const { strings } = this.props;
     return [
       {
         displayName: <Checkbox
-          checked={this.props.parent.state.teams[index === 0 ? 'radiant' : 'dire']}
+          checked={teams[index === 0 ? 'radiant' : 'dire']}
           onCheck={(event, checked) => {
             this.props.parent.setTeam(index === 0 ? 'radiant' : 'dire', checked);
           }
@@ -51,6 +56,16 @@ export default class VisionFilter extends React.Component {
       this.playerColumn(2 + index),
       this.playerColumn(3 + index),
       this.playerColumn(4 + index),
+      {
+        displayName: strings.chat_filter_all,
+        displayFn: row => (<Checkbox
+          checked={this.props.parent.checkedTypeWard(index, row.type)}
+          onCheck={() => {
+            this.props.parent.setTypeWard(index, row.type);
+          }
+          }
+        />),
+      },
     ];
   }
 
@@ -68,6 +83,7 @@ export default class VisionFilter extends React.Component {
   }
 
   render() {
+    const { strings } = this.props;
     return (
       <div>
         <Heading title={strings.general_radiant} />
@@ -78,3 +94,5 @@ export default class VisionFilter extends React.Component {
     );
   }
 }
+
+export default VisionFilter;

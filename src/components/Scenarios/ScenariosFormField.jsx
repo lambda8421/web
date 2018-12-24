@@ -1,11 +1,11 @@
 import React from 'react';
+import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
 import AutoComplete from 'material-ui/AutoComplete';
 import getFormFieldData from './FormFieldData';
 import { listStyle } from './Styles';
-import strings from '../../lang';
 
-const hintTexts = {
+const hintTexts = strings => ({
   itemTimings: {
     hero_id: strings.filter_hero_id,
     item: strings.scenarios_item,
@@ -19,7 +19,7 @@ const hintTexts = {
   misc: {
     scenario: strings.scenarios_scenario,
   },
-};
+});
 
 const customStyles = {
   scenario: { width: '450px' },
@@ -34,16 +34,18 @@ class ScenarioFormField extends React.Component {
     selectedTab: PropTypes.string,
     className: PropTypes.string,
     index: PropTypes.number,
+    strings: PropTypes.shape({}),
+    incrementTableKey: PropTypes.func,
   }
 
   constructor(props) {
     super(props);
     const {
-      field, formFieldState, metadata, selectedTab,
+      field, formFieldState, metadata, selectedTab, strings,
     } = this.props;
     const {
       heroList, itemList, laneRoleList, miscList, gameDurationList, timingList,
-    } = getFormFieldData(metadata);
+    } = getFormFieldData(metadata, strings);
     this.dataSources = {
       itemTimings: {
         hero_id: heroList,
@@ -61,7 +63,7 @@ class ScenarioFormField extends React.Component {
     };
 
 
-    let searchText = this.dataSources[selectedTab][field].find(el => el.value === formFieldState);
+    let searchText = this.dataSources[selectedTab][field].find(el => (el.altValue !== undefined && el.altValue === formFieldState) || el.value === formFieldState);
     searchText = searchText ? searchText.text : '';
 
     this.state = {
@@ -80,6 +82,9 @@ class ScenarioFormField extends React.Component {
   }
 
   resetField() {
+    if (this.props.className === 'filter') {
+      this.props.incrementTableKey();
+    }
     const { updateFormFieldState, field } = this.props;
     this.setState({ searchText: '' }, updateFormFieldState({ [field]: null }));
   }
@@ -90,12 +95,12 @@ class ScenarioFormField extends React.Component {
 
   handleRequest(chosenRequest) {
     const { updateFormFieldState, field } = this.props;
-    updateFormFieldState({ [field]: chosenRequest.value });
+    updateFormFieldState({ [field]: chosenRequest.altValue || chosenRequest.value });
   }
 
   render() {
     const {
-      field, index, selectedTab, className,
+      field, index, selectedTab, className, strings,
     } = this.props;
     const { searchText } = this.state;
     const style = {
@@ -110,7 +115,7 @@ class ScenarioFormField extends React.Component {
           openOnFocus
           listStyle={{ ...listStyle, ...customStyles[field] }}
           filter={AutoComplete.caseInsensitiveFilter}
-          floatingLabelText={hintTexts[selectedTab][field]}
+          floatingLabelText={hintTexts(strings)[selectedTab][field]}
           dataSource={this.dataSources[selectedTab][field]}
           onClick={this.resetField}
           onUpdateInput={this.handleUpdateInput}
@@ -124,4 +129,8 @@ class ScenarioFormField extends React.Component {
   }
 }
 
-export default ScenarioFormField;
+const mapStateToProps = state => ({
+  strings: state.app.strings,
+});
+
+export default connect(mapStateToProps)(ScenarioFormField);

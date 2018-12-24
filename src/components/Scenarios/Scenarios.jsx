@@ -12,12 +12,11 @@ import ScenariosFormField from './ScenariosFormField';
 import getColumns from './ScenariosColumns';
 import { buttonStyle, formFieldStyle, StyledDiv, tabsStyle } from './Styles';
 import { getScenariosItemTimings, getScenariosMisc, getScenariosLaneRoles } from '../../actions/index';
-import strings from '../../lang';
 import Table from '../Table';
-import Spinner from '../Spinner';
 import Error from '../Error';
 import Heading from '../Heading';
-import { groupByArray } from '../../utility/index';
+import ScenariosSkeleton from '../Skeletons/ScenariosSkeleton';
+import { formatTemplateToString, groupByArray } from '../../utility/index';
 import { IconLaneRoles } from '../Icons';
 
 const minSampleSize = row => row.games > 200;
@@ -26,22 +25,24 @@ const forms = {
   itemTimings: {
     queryForms: ['hero_id', 'item'],
     filterForms: ['time'],
+    initialQuery: { hero_id: '1', item: 'bfury' },
   },
   laneRoles: {
     queryForms: ['hero_id', 'lane_role'],
     filterForms: ['time'],
+    initialQuery: { hero_id: '101', lane_role: '2' },
   },
   misc: {
     queryForms: ['scenario'],
   },
 };
 
-const menuItems = [{
+const tabItems = strings => ([{
   text: strings.scenarios_item_timings,
   value: 'itemTimings',
   icon: <Schedule />,
 },
-{// /assets/images/dota2/lane_roles.svg
+{
   text: strings.heading_lane_role,
   value: 'laneRoles',
   icon: <IconLaneRoles />,
@@ -51,7 +52,7 @@ const menuItems = [{
   value: 'misc',
   icon: <Grain />,
 },
-];
+]);
 
 const reduceRows = (data) => {
   if (data.length === 0) {
@@ -80,6 +81,7 @@ class Scenarios extends React.Component {
       push: PropTypes.func,
     }),
     scenariosState: PropTypes.shape({}),
+    strings: PropTypes.shape({}),
   }
 
   constructor(props) {
@@ -87,9 +89,15 @@ class Scenarios extends React.Component {
 
     const selectedTab = this.props.match.params.info || 'itemTimings';
     const params = this.props.location.search.substring(1);
+
+    const initialQueries = {};
+    Object.keys(forms).forEach((tab) => {
+      initialQueries[tab] = (selectedTab === tab && Object.keys(querystring.parse(params)).length > 0) ? querystring.parse(params) : forms[tab].initialQuery;
+    });
+
     this.state = {
       selectedTab,
-      formFields: { [selectedTab]: querystring.parse(params) || null },
+      formFields: initialQueries,
     };
     this.updateFormFieldStates();
 
@@ -100,11 +108,13 @@ class Scenarios extends React.Component {
 
   componentDidMount() {
     this.getData();
+    this.updateQueryParams();
   }
 
   getData() {
     const { selectedTab, formFields } = this.state;
     this.props[selectedTab](formFields[selectedTab]);
+    this.incrementTableKey();
   }
 
   initialQuery() {
@@ -123,8 +133,7 @@ class Scenarios extends React.Component {
 
   updateQueryParams() {
     const { formFields, selectedTab } = this.state;
-    const { location } = this.props;
-    this.props.history.push(`${location.pathname}?${querystring.stringify(formFields[selectedTab])}`);
+    this.props.history.push(`/scenarios/${selectedTab}?${querystring.stringify(formFields[selectedTab])}`);
   }
 
   updateFormFieldStates(newFormFieldState) {
@@ -134,8 +143,14 @@ class Scenarios extends React.Component {
     }, this.updateQueryParams);
   }
 
+  tableKey = 0;
+
+  incrementTableKey = () => {
+    this.tableKey += 1;
+  }
+
   render() {
-    const { scenariosState } = this.props;
+    const { scenariosState, strings } = this.props;
     const { selectedTab, formFields } = this.state;
     let { data } = scenariosState[selectedTab];
     const { queryForms, filterForms } = forms[selectedTab];
@@ -149,12 +164,12 @@ class Scenarios extends React.Component {
     return (
       <StyledDiv>
         {metadataError && <Error />}
-        {metadataLoading && <Spinner />}
+        {metadataLoading && <ScenariosSkeleton />}
         {!metadataError && !metadataLoading &&
         <div>
-          <Heading title={strings.header_scenarios} subtitle={strings.scenarios_subtitle} />
+          <Heading title={strings.header_scenarios} subtitle={strings.scenarios_subtitle} info={`${formatTemplateToString(strings.scenarios_info, 4)}`} />
           <Tabs value={selectedTab} onChange={this.handleChange} style={tabsStyle}>
-            {menuItems.map(item => (
+            {tabItems(strings).map(item => (
               <Tab label={item.text} value={item.value} icon={item.icon} containerElement={getLink(item.value)} className="tab" />
             ))}
           </Tabs>
@@ -170,6 +185,7 @@ class Scenarios extends React.Component {
                 formFieldState={formFields[selectedTab] && formFields[selectedTab][field]}
                 metadata={metadata}
                 className={filterForms && filterForms.includes(field) ? 'filter' : 'query'}
+                incrementTableKey={this.incrementTableKey}
               />
           ))}
           </div>
@@ -184,9 +200,9 @@ class Scenarios extends React.Component {
           />
           <Heading title={strings.explorer_results} subtitle={`${data.filter(minSampleSize).length} ${strings.explorer_num_rows}`} />
           <Table
-            key={selectedTab}
+            key={selectedTab + this.tableKey}
             data={data.filter(minSampleSize)}
-            columns={getColumns(selectedTab, metadata)}
+            columns={getColumns(selectedTab, metadata, strings)}
             loading={scenariosState[selectedTab].loading}
             paginated
           />
@@ -228,6 +244,7 @@ const mapStateToProps = (state) => {
         error: scenariosMisc.error,
       },
     },
+    strings: state.app.strings,
   };
 };
 
